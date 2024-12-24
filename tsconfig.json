@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "jsx": "react",
     "baseUrl": ".",
     "inlineSourceMap": true,
     "inlineSources": true,
@@ -16,7 +17,7 @@
       "ES5",
       "ES6",
       "ES7"
-    ]
+    ],
   },
   "include": [
     "**/*.ts"
