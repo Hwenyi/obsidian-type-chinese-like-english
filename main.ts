@@ -273,7 +273,7 @@ class PinyinConverterSettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('是否包含笔记上下文')
-            .setDesc('将会消耗稍多的token，以及稍慢的响应时间，但有更好的转换效果')
+            .setDesc('将会消耗稍多的token，以及稍慢的响应时间，但可能有更好的转换效果')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.withContext)
                 .onChange(async (value) => {
