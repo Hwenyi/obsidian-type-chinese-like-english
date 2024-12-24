@@ -18,14 +18,12 @@ export default class PinyinConverter extends Plugin {
     async onload() {
         await this.loadSettings();
 
-        // This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-        const statusBarItemEl = this.addStatusBarItem();
-        statusBarItemEl.setText('Pinyin Converter Ready');
-
         // This adds a simple command that can be triggered anywhere
         this.addCommand({
             id: 'convert-to-characters-math',
             name: '转换为汉字和mathjax',
+			//alt+i 作为热键
+			hotkeys: [{modifiers: ["Alt"], key: 'i'}],
             editorCallback: (editor: Editor) => {
                 this.convertToCharacters(editor);
             }
@@ -35,33 +33,61 @@ export default class PinyinConverter extends Plugin {
         this.addSettingTab(new PinyinConverterSettingTab(this.app, this));
     }
 
-    async convertToCharacters(editor: Editor) {
-        const selectedText = editor.getSelection();
-        if (!selectedText) {
-            new Notice('请先选择要转换的拼音文本', 3000);
-            return;
-        }
+    // async convertToCharacters(editor: Editor) {
+    //     const selectedText = editor.getSelection();
+    //     if (!selectedText) {
+    //         new Notice('请先选择要转换的拼音文本', 3000);
+    //         return;
+    //     }
 
-        const loadingNotice = new Notice('正在转换拼音...', 0);
+    //     const loadingNotice = new Notice('正在转换拼音...', 0);
 
-        try {
-            const normalizedText = await this.callAPI(selectedText);
-            if (normalizedText) {
-                editor.replaceSelection(normalizedText);
-                new Notice('转换完成！', 2000);
-            } else {
-                throw new Error('API返回的结果为空');
-            }
-        } catch (error) {
-            console.error('Conversion error:', error);
-            new Notice(`转换失败: ${error instanceof Error ? error.message : '未知错误'}`, 5000);
-        } finally {
-            loadingNotice.hide();
-        }
+    //     try {
+    //         const normalizedText = await this.callAPI(selectedText);
+    //         if (normalizedText) {
+    //             editor.replaceSelection(normalizedText);
+    //             new Notice('转换完成！', 2000);
+    //         } else {
+    //             throw new Error('API返回的结果为空');
+    //         }
+    //     } catch (error) {
+    //         console.error('Conversion error:', error);
+    //         new Notice(`转换失败: ${error instanceof Error ? error.message : '未知错误'}`, 5000);
+    //     } finally {
+    //         loadingNotice.hide();
+    //     }
+    // }
+
+	async convertToCharacters(editor: Editor) {
+    const line = editor.getCursor().line;
+    const lineText = editor.getLine(line);
+    if (!lineText) {
+        new Notice('当前行没有文本可转换', 3000);
+        return;
     }
 
+    const loadingNotice = new Notice('正在转换拼音...', 0);
+
+    try {
+        const convertedText = await this.callAPI(lineText);
+        if (convertedText) {
+            editor.replaceRange('', { line: line, ch: 0 }, { line: line, ch: lineText.length });
+            editor.setCursor({ line: line, ch: 0 });
+            editor.replaceRange(convertedText, { line: line, ch: 0 });
+            new Notice('转换完成！', 2000);
+        } else {
+            throw new Error('API返回的结果为空');
+        }
+    } catch (error) {
+        console.error('Conversion error:', error);
+        new Notice(`转换失败: ${error instanceof Error ? error.message : '未知错误'}`, 5000);
+    } finally {
+        loadingNotice.hide();
+    }
+}
+
     async callAPI(input: string): Promise<string> {
-		
+
         try {
             const response = await fetch(`${this.settings.baseURL}/chat/completions`, {
                 method: 'POST',
