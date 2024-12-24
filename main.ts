@@ -1,4 +1,4 @@
-import { App, Editor, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, Editor, MarkdownView, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
 
 interface ConverterSetting {
     baseURL: string;
@@ -23,7 +23,7 @@ export default class PinyinConverter extends Plugin {
         this.addCommand({
             id: 'convert-to-characters-math',
             name: '转换为汉字和mathjax',
-            hotkeys: [{modifiers: ["Alt"], key: 'i'}],
+            hotkeys: [{ modifiers: ["Alt"], key: 'i' }],
             editorCallback: (editor: Editor) => {
                 this.convertToCharacters(editor);
             }
@@ -32,11 +32,21 @@ export default class PinyinConverter extends Plugin {
         this.addSettingTab(new PinyinConverterSettingTab(this.app, this));
     }
 
+    getEditor() {
+        const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (mdView) {
+            return mdView.editor;
+        }
+        return null;
+    }
+
     async convertToCharacters(editor: Editor) {
-        const line = editor.getCursor().line;
-        const lineText = editor.getLine(line);
-        
-        if (!lineText) {
+        // 获取当前行信息
+        const cursor = editor.getCursor();
+        const currentLine = cursor.line;
+        const lineContent = editor.getLine(currentLine);
+
+        if (!lineContent.trim()) {
             new Notice('当前行没有文本可转换', 3000);
             return;
         }
@@ -44,26 +54,33 @@ export default class PinyinConverter extends Plugin {
         const loadingNotice = new Notice('正在转换拼音...', 0);
 
         try {
-            let context = '';
+            let contextContent = '';
             if (this.settings.withContext) {
-                // 获取整个文档内容
+                // 获取文档上下文
                 const fullContent = editor.getValue();
-                // 将当前行标记出来
                 const lines = fullContent.split('\n');
-                lines[line] = `[待转换行] ${lines[line]}`;
-                context = lines.join('\n');
+                lines[currentLine] = `[待转换行] ${lines[currentLine]}`;
+                contextContent = lines.join('\n');
             }
 
-            const convertedText = await this.callAPI(lineText, context);
-            
+            const convertedText = await this.callAPI(lineContent, contextContent);
+
             if (convertedText) {
-                // 替换当前行内容
-                editor.replaceRange('', 
-                    { line: line, ch: 0 }, 
-                    { line: line, ch: lineText.length }
-                );
-                editor.setCursor({ line: line, ch: 0 });
-                editor.replaceRange(convertedText, { line: line, ch: 0 });
+                // 删除当前行内容
+                editor.setLine(currentLine, '');
+                
+                // 将光标移动到行首
+                editor.setCursor({
+                    line: currentLine,
+                    ch: 0
+                });
+
+                // 在当前位置插入转换后的文本
+                editor.replaceRange(convertedText.trim(), {
+                    line: currentLine,
+                    ch: 0
+                });
+
                 new Notice('转换完成！', 2000);
             } else {
                 throw new Error('API返回的结果为空');
@@ -128,7 +145,6 @@ ${context}
             // 如果是上下文模式，需要从返回结果中提取出转换后的那一行
             if (context) {
                 const convertedLine = data.choices[0].message.content.trim();
-                // 确保我们只返回转换后的那一行，而不是整个上下文
                 return convertedLine;
             }
 
@@ -196,22 +212,12 @@ class PinyinConverterSettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('API密钥')
-            .setDesc('一般是sk-')
+            .setDesc('API访问密钥')
             .addText(text => text
                 .setPlaceholder('sk-oeglkabudsbxjlwgmasreoafklxugoupcvbstsusqgkrfpkm')
                 .setValue(this.plugin.settings.apiKey)
                 .onChange(async (value) => {
                     this.plugin.settings.apiKey = value;
-                    await this.plugin.saveSettings();
-            }));
-
-        new Setting(containerEl)
-            .setName('是否包含笔记上下文')
-            .setDesc('将会消耗稍多的token，以及稍慢的响应时间，但有更好的转换效果')
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.withContext)
-                .onChange(async (value) => {
-                    this.plugin.settings.withContext = value;
                     await this.plugin.saveSettings();
             }));
     }
