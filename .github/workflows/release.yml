@@ -6,7 +6,7 @@ on:
       - "*"
 
 env:
-  PLUGIN_NAME: type-pinyin-as-English 
+  PLUGIN_NAME: type-chinese-as-English 
 jobs:
   build:
     runs-on: ubuntu-latest
