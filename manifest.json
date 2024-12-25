@@ -3,9 +3,9 @@
 	"name": "Type Chinese As English",
 	"version": "1.0.1",
 	"minAppVersion": "0.15.0",
-	"description": "Withou IME switch, type Chinese as English, more easy and fast, sepcically in the vim model",
+	"description": "Convert pinyin to Chinese characters and Latex",
 	"author": "Hwenyi",
 	"authorUrl": "https://github.com/Hwenyi/obsidian-type-chinese-as-english",
-	"fundingUrl": "https://github.com/Hwenyi/obsidian-type-chinese-as-english",
+	"fundingUrl": "",
 	"isDesktopOnly": false
 }
