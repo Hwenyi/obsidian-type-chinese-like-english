@@ -21,20 +21,29 @@ Type Chinese As English 允许您无需切换输入法，在英文模式下，�
 有效的 AI API 密钥，推荐使用硅基流动平台的免费国产模型，或者 Groq 平台的免费开源 llama，后续将会添加对于 Google Gemini 模型的支持
 
 打开 Obsidian 并进入设置
+
 导航到社区插件并禁用安全模式
+
 点击浏览并搜索 "Type Chinese As English"
+
 安装插件并启用它
+
 或者，您可以手动安装插件：
 
 从 GitHub 仓库下载最新版本
+
 将压缩文件解压到您的 Obsidian 笔记库的 .obsidian/plugins/ 目录中
+
 重新加载 Obsidian
+
 进入设置 > 社区插件并启用 "Type Chinese As English"
 
 # 使用方法
 
 光标停留在当前用拼音输入的行中，即您要转换为汉字和数学公式的文本
+
 使用默认快捷键 Alt + i 或者 命令面板（Ctrl/Cmd + P）并搜索 "转换为汉字和数学公式"
+
 插件将把您当前行的拼音转换为汉字和数学公式，并用生成的新内容完成替换
 
 # 配置
@@ -42,10 +51,15 @@ Type Chinese As English 允许您无需切换输入法，在英文模式下，�
 要配置 Type Chinese As English 插件：
 
 进入设置 > 社区插件
+
 在列表中找到 "Type Chinese As English" 并点击齿轮图标
+
 在设置选项卡中，您可以：
+
 设置用于转换的 API 模型（默认是 "Qwen/Qwen2.5-7B-Instruct"）
+
 设置您的 BaseURL 源头
+
 选择转换是否携带笔记的上下文以换取可能更好的转换效果
 
 # 故障排除
@@ -53,11 +67,17 @@ Type Chinese As English 允许您无需切换输入法，在英文模式下，�
 如果您遇到任何问题：
 
 确保您有有效的 API 密钥
+
 检查插件设置中指定的 API 地址是否正确
+
 验证插件设置中指定的模型是否可用
+
 如果看到错误信息，它们将提供有关问题的详细信息。常见问题包括：
+
 与 API 的连接问题
+
 模型返回的无效响应
+
 解析错误
 
 # 贡献
