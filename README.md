@@ -1,94 +1,75 @@
-# Obsidian Sample Plugin
+# Type Chinese As English
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+当要同时输入中文和mathjax/latex数学公式时，有两个烦人的问题
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+1. 输入法频繁在中英文中进行切换，如果你习惯于使用vim模式 ，这一问题将更加的烦恼
+2. 如果你像我一样是使用全拼的中文输入法，频繁的进入 IME 选词将会干扰流畅的写作思路
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open Sample Modal" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+Type Chinese As English 允许您无需切换输入法，在英文模式下，直接输入拼音，将拼音输入转换为汉字和数学公式。
 
-## First time developing plugins?
+该插件利用了 AI 大语言模型，提供准确且快速的转换，直接在您的 Obsidian 编辑器中完成，方便于不想掌握繁琐 LaTeX 语法的用户、被输入法切换困扰的用户，快速无干扰地输入数学公式
 
-Quick starting guide for new plugin devs:
+# 功能
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+- 使用单个命令将当前行选定文本转换为对应的文字语句
+- 将拼音形式下，用自然语言描述的数学公式直接转换为mathjax
+- 英语和拼音混合可以混合输入，英语单词、英语语法加拼音同样有良好的转换效果
+- 可自定义的 API 和 模型选择
 
-## Releasing new releases
+# 要求
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/type-chinese-as-English/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+有效的 AI API 密钥，推荐使用硅基流动平台的免费国产模型，或者 Groq 平台的免费开源 llama，后续将会添加对于 Google Gemini 模型的支持
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+打开 Obsidian 并进入设置
+导航到社区插件并禁用安全模式
+点击浏览并搜索 "Type Chinese As English"
+安装插件并启用它
+或者，您可以手动安装插件：
 
-## Adding your plugin to the community plugin list
+从 GitHub 仓库下载最新版本
+将压缩文件解压到您的 Obsidian 笔记库的 .obsidian/plugins/ 目录中
+重新加载 Obsidian
+进入设置 > 社区插件并启用 "Type Chinese As English"
 
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+# 使用方法
 
-## How to use
+光标停留在当前用拼音输入的行中，即您要转换为汉字和数学公式的文本
+使用默认快捷键 Alt + i 或者 命令面板（Ctrl/Cmd + P）并搜索 "转换为汉字和数学公式"
+插件将把您当前行的拼音转换为汉字和数学公式，并用生成的新内容完成替换
 
-- Clone this repo.
-- Make sure your NodeJS is at least v16 (`node --version`).
-- `npm i` or `yarn` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
+# 配置
 
-## Manually installing the plugin
+要配置 Type Chinese As English 插件：
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+进入设置 > 社区插件
+在列表中找到 "Type Chinese As English" 并点击齿轮图标
+在设置选项卡中，您可以：
+设置用于转换的 API 模型（默认是 "Qwen/Qwen2.5-7B-Instruct"）
+设置您的 BaseURL 源头
+选择转换是否携带笔记的上下文以换取可能更好的转换效果
 
-## Improve code quality with eslint (optional)
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
-- To use eslint with this project, make sure to install eslint from terminal:
-  - `npm install -g eslint`
-- To use eslint to analyze this project use this command:
-  - `eslint main.ts`
-  - eslint will then create a report with suggestions for code improvement by file and line number.
-- If your source code is in a folder, such as `src`, you can use eslint with this command to analyze all files in that folder:
-  - `eslint .\src\`
+# 故障排除
 
-## Funding URL
+如果您遇到任何问题：
 
-You can include funding URLs where people who use your plugin can financially support it.
+确保您有有效的 API 密钥
+检查插件设置中指定的 API 地址是否正确
+验证插件设置中指定的模型是否可用
+如果看到错误信息，它们将提供有关问题的详细信息。常见问题包括：
+与 API 的连接问题
+模型返回的无效响应
+解析错误
 
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
+# 贡献
 
-```json
-{
-    "fundingUrl": "https://buymeacoffee.com"
-}
-```
+欢迎贡献！请随时提交拉取请求。
 
-If you have multiple URLs, you can also do:
+# 许可证
 
-```json
-{
-    "fundingUrl": {
-        "Buy Me a Coffee": "https://buymeacoffee.com",
-        "GitHub Sponsor": "https://github.com/sponsors",
-        "Patreon": "https://www.patreon.com/"
-    }
-}
-```
+此插件根据 MIT 许可证授权。有关详细信息，请参阅 LICENSE 文件。
 
-## API Documentation
+# 支持
 
-See https://github.com/obsidianmd/obsidian-api
+如果您在使用插件时遇到问题，请在 GitHub 仓库中打开一个 issue。
+
+希望您在 Obsidian 中使用 Type Chinese As English 插件时能有愉快的体验。祝您笔记愉快！

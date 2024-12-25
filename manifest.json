@@ -3,9 +3,9 @@
 	"name": "Type Chinese As English",
 	"version": "1.0.1",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"description": "Withou IME switch, type Chinese as English, more easy and fast, sepcically in the vim model",
+	"author": "Hwenyi",
+	"authorUrl": "https://github.com/Hwenyi/obsidian-type-chinese-as-english",
+	"fundingUrl": "https://github.com/Hwenyi/obsidian-type-chinese-as-english",
 	"isDesktopOnly": false
 }
