@@ -6,7 +6,7 @@ on:
       - "*"
 
 env:
-  PLUGIN_NAME: obsidian-type-chinese-as-english
+  PLUGIN_NAME: obsidian-type-chinese-like-english
 
 jobs:
   build:

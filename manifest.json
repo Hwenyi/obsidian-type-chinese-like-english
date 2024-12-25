@@ -1,11 +1,11 @@
 {
-	"id": "type-chinese-as-English",
-	"name": "Type Chinese As English",
+	"id": "type-chinese-like-english",
+	"name": "Type Chinese Like English",
 	"version": "1.0.1",
 	"minAppVersion": "0.15.0",
 	"description": "Convert pinyin to Chinese characters and Latex",
 	"author": "Hwenyi",
-	"authorUrl": "https://github.com/Hwenyi/obsidian-type-chinese-as-english",
+	"authorUrl": "https://github.com/Hwenyi/obsidian-type-chinese-like-english",
 	"fundingUrl": "",
 	"isDesktopOnly": true
 }
