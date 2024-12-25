@@ -11,7 +11,7 @@ const DEFAULT_SETTINGS: ConverterSetting = {
     baseURL: 'https://api.siliconflow.cn/v1',
     model: 'Qwen/Qwen2.5-7B-Instruct',
     apiKey: '',
-    withContext: false
+    withContext: false,
 }
 
 export default class PinyinConverter extends Plugin {
@@ -23,7 +23,6 @@ export default class PinyinConverter extends Plugin {
         this.addCommand({
             id: 'convert-to-characters-math',
             name: '转换为汉字和mathjax',
-            hotkeys: [{ modifiers: ["Alt"], key: 'i' }],
             editorCallback: (editor: Editor) => {
                 this.convertToCharacters(editor);
             }
@@ -62,36 +61,41 @@ export default class PinyinConverter extends Plugin {
                 lines[currentLine] = `[待转换行] ${lines[currentLine]}`;
                 contextContent = lines.join('\n');
 
-				if(contextContent.length > 2000) {
-					const start = Math.max(currentLine - 10, 0);
-					const end = Math.min(currentLine + 10, lines.length-1);
-					contextContent = lines.slice(start, end).join('\n');
-					if(contextContent.length > 2000) {
-						contextContent = contextContent.substring(0, 2000);
-					}
-				}
-
+                // 限制上下文的长度
+                if (contextContent.length > 2000) {
+                    contextContent = contextContent.substring(0, 2000);
+                }
             }
 
             const convertedText = await this.callAPI(lineContent, contextContent);
 
             if (convertedText) {
-                // 删除当前行内容
-                editor.setLine(currentLine, '');
-                
-                // 将光标移动到行首
-                editor.setCursor({
-                    line: currentLine,
-                    ch: 0
-                });
+                // 使用更安全的文本替换方法
+                try {
+                    // 获取当前行的起始位置和结束位置
+                    const from = {
+                        line: currentLine,
+                        ch: 0
+                    };
+                    const to = {
+                        line: currentLine,
+                        ch: lineContent.length
+                    };
 
-                // 在当前位置插入转换后的文本
-                editor.replaceRange(convertedText.trim(), {
-                    line: currentLine,
-                    ch: 0
-                });
+                    // 使用transaction来确保原子操作
+                    editor.transaction({
+                        changes: [{
+                            from,
+                            to,
+                            text: convertedText.trim()
+                        }]
+                    });
 
-                new Notice('转换完成！', 2000);
+                    new Notice('转换完成！', 2000);
+                } catch (replaceError) {
+                    console.error('Text replacement error:', replaceError);
+                    throw new Error('替换文本时出错');
+                }
             } else {
                 throw new Error('API返回的结果为空');
             }
@@ -153,10 +157,10 @@ export default class PinyinConverter extends Plugin {
 			if (context) {
 				userPrompt = `下面是当前输入的完整上下文，你要结合上下文充分了解输入者的表达意图和具体的场景，把拼音转化为和上下文内容主题一致的、正确的词语表达：
 	${context}
-	转换下列段落, 纠正错误输入和误拼, 直接输出转换结果: 
+	转换下列段落, 纠正错误输入和误拼, 直接输出转换结果，严禁输出额外说明信息和解释内容: 
 	${input}`;
 			} else {
-				userPrompt = `转换下列段落, 纠正错误输入和误拼, 直接输出转换结果: 
+				userPrompt = `转换下列段落, 纠正错误输入和误拼, 直接输出转换结果，严禁输出额外说明信息和解释内容: 
 	${input}`;
 			}
 
