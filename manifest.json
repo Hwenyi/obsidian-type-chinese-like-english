@@ -1,6 +1,6 @@
 {
 	"id": "type-chinese-as-English",
-	"name": "type-chinese-as-English",
+	"name": "Type Chinese As English",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
 	"description": "Demonstrates some of the capabilities of the Obsidian API.",
