@@ -1,7 +1,7 @@
 {
 	"name": "type-chinese-like-english",
 	"version": "1.0.0",
-	"description": "type chinese as english, more easy and fast",
+	"description": "Type Chinese Like English, more easy and fast",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
