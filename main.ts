@@ -1,4 +1,4 @@
-import { App, Editor, MarkdownView, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, Editor, MarkdownView, Notice, Plugin, PluginSettingTab, Setting, requestUrl } from 'obsidian';
 
 interface ConverterSetting {
     baseURL: string;
@@ -164,7 +164,8 @@ export default class PinyinConverter extends Plugin {
 	${input}`;
 			}
 
-			const response = await fetch(`${this.settings.baseURL}/chat/completions`, {
+			const response = await requestUrl({
+                url: `${this.settings.baseURL}/chat/completions`,
 				method: 'POST',
 				headers: {
 					'Authorization': `Bearer ${this.settings.apiKey}`,
@@ -189,15 +190,15 @@ export default class PinyinConverter extends Plugin {
 				})
 			});
 
-			if (!response.ok) {
-				const errorData = await response.json().catch(() => null);
+            if (response.status < 200 || response.status >= 300) {
+                const errorData = await response.json.catch(() => null);
 				throw new Error(
 					errorData?.error?.message || 
 					`API请求失败 (HTTP ${response.status})`
 				);
 			}
 
-			const data = await response.json();
+			const data = await response.json;
 			
 			if (!data.choices?.[0]?.message?.content) {
 				throw new Error('API返回的数据格式不正确');
@@ -227,6 +228,7 @@ export default class PinyinConverter extends Plugin {
 }
 
 class PinyinConverterSettingTab extends PluginSettingTab {
+
     plugin: PinyinConverter;
 
     constructor(app: App, plugin: PinyinConverter) {
@@ -238,8 +240,6 @@ class PinyinConverterSettingTab extends PluginSettingTab {
         const {containerEl} = this;
 
         containerEl.empty();
-
-        containerEl.createEl('h2', {text: '拼音转换设置'});
 
         new Setting(containerEl)
             .setName('模型')
