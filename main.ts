@@ -1,28 +1,39 @@
-import { App, Editor, MarkdownView, Notice, Plugin, PluginSettingTab, Setting, requestUrl } from 'obsidian';
+import { App, Editor, Notice,MarkdownView, Plugin, PluginSettingTab, Setting, requestUrl } from 'obsidian';
+import { generateObject } from 'ai';
+import { z } from 'zod';
+import { createGroq } from '@ai-sdk/groq';
 
 interface ConverterSetting {
-    baseURL: string;
-    model: string;
-    apiKey: string;
-    withContext: boolean;
+	// TODO 提供model和apiKey、baseUrl 以及两个开关，是否包含上下文、是否使用LaTeX模式（默认是关闭即普通模式）
+	withContext: boolean;
+	withLaTeX: boolean;
+	model: string;
+	apiKey: string;
+	baseUrl: string
 }
 
 const DEFAULT_SETTINGS: ConverterSetting = {
-    baseURL: 'https://api.siliconflow.cn/v1',
-    model: 'Qwen/Qwen2.5-7B-Instruct',
-    apiKey: '',
-    withContext: false,
+
+	// TODO 默认使用Groq
+	withContext: false,
+	withLaTeX: false,
+	model: "llama-3.3-70b-versatile",
+	apiKey: "",
+	baseUrl: "https://api.groq.com/openai/v1"
+
 }
 
 export default class PinyinConverter extends Plugin {
+
     settings: ConverterSetting;
 
     async onload() {
+
         await this.loadSettings();
 
         this.addCommand({
             id: 'convert-to-characters-math',
-            name: '转换为汉字和mathjax',
+            name: '转换为汉字和LaTex',
             editorCallback: (editor: Editor) => {
                 this.convertToCharacters(editor);
             }
@@ -31,194 +42,159 @@ export default class PinyinConverter extends Plugin {
         this.addSettingTab(new PinyinConverterSettingTab(this.app, this));
     }
 
-    getEditor() {
-        const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
-        if (mdView) {
-            return mdView.editor;
+	getContext(editor: Editor): string {
+        const cursor = editor.getCursor();
+        const startLine = Math.max(0, cursor.line - 3);
+        const endLine = Math.min(editor.lineCount() - 1, cursor.line + 3);
+        let contextText = "";
+        for (let i = startLine; i <= endLine; i++) {
+            contextText += editor.getLine(i) + "\n";
         }
-        return null;
+        if (contextText.length > 1000) {
+            contextText = contextText.substring(0, 1000);
+        }
+        return contextText;
     }
 
-    async convertToCharacters(editor: Editor) {
-        // 获取当前行信息
+    /**
+     * 将光标所在行转换为汉字和LaTeX，根据设置决定是否包含上下文以及使用普通或LaTeX模式
+     */
+    async convertToCharacters(editor: Editor): Promise<void> {
         const cursor = editor.getCursor();
-        const currentLine = cursor.line;
-        const lineContent = editor.getLine(currentLine);
-
-        if (!lineContent.trim()) {
-            new Notice('当前行没有文本可转换', 3000);
+        const inputLine = editor.getLine(cursor.line).trim();
+        if (!inputLine) {
+            new Notice("当前所在行为空");
             return;
         }
-
-        const loadingNotice = new Notice('正在转换拼音...', 0);
-
-        try {
-            let contextContent = '';
-            if (this.settings.withContext) {
-                // 获取文档上下文
-                const fullContent = editor.getValue();
-                const lines = fullContent.split('\n');
-                lines[currentLine] = `[待转换行] ${lines[currentLine]}`;
-                contextContent = lines.join('\n');
-
-                // 限制上下文的长度
-                if (contextContent.length > 2000) {
-                    contextContent = contextContent.substring(0, 2000);
-                }
-            }
-
-            const convertedText = await this.callAPI(lineContent, contextContent);
-
-            if (convertedText) {
-                // 使用更安全的文本替换方法
-                try {
-                    // 获取当前行的起始位置和结束位置
-                    const from = {
-                        line: currentLine,
-                        ch: 0
-                    };
-                    const to = {
-                        line: currentLine,
-                        ch: lineContent.length
-                    };
-
-                    // 使用transaction来确保原子操作
-                    editor.transaction({
-                        changes: [{
-                            from,
-                            to,
-                            text: convertedText.trim()
-                        }]
-                    });
-
-                    new Notice('转换完成！', 2000);
-                } catch (replaceError) {
-                    console.error('Text replacement error:', replaceError);
-                    throw new Error('替换文本时出错');
-                }
-            } else {
-                throw new Error('API返回的结果为空');
-            }
-        } catch (error) {
-            console.error('Conversion error:', error);
-            new Notice(`转换失败: ${error instanceof Error ? error.message : '未知错误'}`, 5000);
-        } finally {
-            loadingNotice.hide();
+        const context = this.settings.withContext ? this.getContext(editor) : "";
+        const result = await this.callAPI(inputLine, context);
+        if (result) {
+            // 将当前行替换为转换结果
+            const lineStart = { line: cursor.line, ch: 0 };
+            const lineEnd = { line: cursor.line, ch: inputLine.length };
+            editor.replaceRange(result, lineStart, lineEnd);
+            new Notice("转换完成");
+        } else {
+            new Notice("转换失败");
         }
     }
 
-	async callAPI(input: string, context = ''): Promise<string> {
-	const systemPrompt = `
-    **1. R (Role):** 你是一位专业的数学公式翻译助手和中文拼音翻译助手，能够准确将拼音拼写还原为与之对应的中文，同时可以理解拼音的语义，把其中自然语言描述的部分用mathjax书写
-    **2. O (Objectives):**
-    *   将用户提供的拼音和英文混合文本转换成相应的中文语句，力求表达流畅、准确，忠于原文意思，不进行解释、曲解、大幅度修改或扩写。
-    *   将用户使用拼音描述的数学公式（例如：“x de ping fang”，“y dui x de ji fen”）转换成对应的 MathJax 格式。
-    *   识别并修复用户可能因输入过快导致的个别拼音或单词的字母顺序颠倒、错乱（例如 “shang” 误输入为 “shagn”）。
-    **3. S (Style):** 自然流畅，符合现代中文表达习惯，避免口语化或过于正式。数学公式使用清晰、准确的 MathJax 语法。
-    **4. C (Content):**  用户输入的文本模拟了在中文输入法下只输入拼音和英文的场景，目的是为了减少 IME 选词干扰，保持思路流畅，尤其是在输入数学公式时。你需要理解这种输入方式背后的需求和**实际文本的上下文内容**，并尽可能准确地还原用户想要表达的意思，包括正确理解并转换自然语言描述的数学公式。
-    **5. I (Input):**
-    *   包含拼音、英文单词以及拼音形式下自然语言描述的数学公式的混合文本字符串。
-    *   拼音之间可能存在空格或因用户不想中断思路而连接在一起。
-    *   拼音形式下用自然语言描述的数学公式可能包括中文的运算符号、函数名等。
-    *   同时，提供了整个上下文作为参考，更好地了解输入者的表达意图。
-    **6. R (Response):**
-    *   转换后的完整中文语句，确保语句通顺，意思表达清晰。
-    *   使用 MathJax 语法表示所有识别出的数学公式。
-    *   保留所有其他的格式标记，如 Markdown 格式标记、Obsidian 的链接、Wiki 链接、图片链接等。
-    **7. A (Audience):** 所有需要将拼音、英文以及拼音形式下自然语言描述的数学公式的混合文本转换成中文和 MathJax 公式的中文用户。
-    **8. W (Workflow):**
-    1. 识别输入文本中的拼音、英文单词和拼音形式下自然语言描述的数学公式。
-    2. 将拼音转换成对应的汉字，并**根据上下文**选择最合适的词义。
-    3. 将英文单词融入中文语句中，确保语义流畅自然。
-    4. 将拼音形式下自然语言描述的数学公式转换成对应的 MathJax 语法。
-    5. 用户可能因为输入过快，导致个别拼音或者单词的字母顺序出现了颠倒、错乱，比如 shang，输入为了 shagn，你应该结合上下文正确识别到这些错误，并正确地修复它。
-    6. 整合所有部分，生成最终的中文语句和 MathJax 公式。
-    7. 严禁解释、曲解，大幅度修改，扩写内容！不需要输出额外的说明，你只负责转换！！！
-    **示例:**
-    **Input (输入):** zhe ge function shi fx dnegyu x de pingfang ,  its derivative is fx dengyu 2x ,zheshi chagn yong [[qiudaogongshi]]
-    **Response (响应):** 这个 function 是 $f(x) = x^2$, 它的微分是 $f'(x) = 2x$，这是常用[[求导公式]]
-    **Input:** ruguo wo dui y dengyu x fen zhi yi jinxing jifen,  jieguo shi shenme?
-    **Response (响应):** 如果我对 $y = \frac{1}{x}$ 进行积分，结果是什么？
-    **Input:** jisuan y dengyu e de x cifang zai qujian 0 dao 1 shang de dingjifen
-    **Response (响应):** 计算 $y=\int _{0}^{1}e^{ x } \, dx$。
-    **Input:** y dui x de er jie daoshu keyi xiecheng shenmeyang?
-    **Response (响应):** $y''$ 可以写成什么样？
-    **Input:** genju shangxiawen, zhege shuzi yinggai shi genhaoxia 2, er bu shi gen 2, suoyi qing ni xiuzheng zhege cuowu.
-    **Response (响应):** 根据上下文，这个数字应该是 $\sqrt{2}$，而不是跟 2，所以请你修正这个错误。
-	**Input:** zhe shi yiduan ceshi wenben , duoge pinyin zhijian keneng hunhezaiyiqi yekeneng fenkaile, ruguo meiyoufenkai shiyinweiyonghu xianzai buxiangbeiganraodaduan, siluhenshunchang
-	**Response:** 这是一段测试文本，多个拼音之间可能混合在一起也可能分开了，如果没有分开，是因为用户现在不想被干扰打断，思路很顺畅
-	**Input:** sometimes zhijie yong yingwen word keyi genghao de chuanda wode feeling
-	**Response:** 有时候直接用英文单词可以更好地传达我的感受
-	**Input:** jintian tianze henhao,  very sunny,  shi he wai chu de rizi
-	**Response:** 今天天色很好，very sunny，适合外出的日子。
-	`;
-		try {
-			let userPrompt = '';
-			if (context) {
-				userPrompt = `下面是当前输入的完整上下文，你要结合上下文充分了解输入者的表达意图和具体的场景，把拼音转化为和上下文内容主题一致的、正确的词语表达：
-	${context}
-	转换下列段落, 纠正错误输入和误拼, 直接输出转换结果，严禁输出额外说明信息和解释内容: 
-	${input}`;
-			} else {
-				userPrompt = `转换下列段落, 纠正错误输入和误拼, 直接输出转换结果，严禁输出额外说明信息和解释内容: 
-	${input}`;
-			}
 
-			const response = await requestUrl({
-                url: `${this.settings.baseURL}/chat/completions`,
-				method: 'POST',
-				headers: {
-					'Authorization': `Bearer ${this.settings.apiKey}`,
-					'Content-Type': 'application/json',
-				},
-				body: JSON.stringify({
-					model: this.settings.model,
-					messages: [
-						{
-							role: "system",
-							content: systemPrompt
-						},
-						{
-							role: "user",
-							content: userPrompt
-						}
-					],
-					stream: false,
-					max_tokens: 4096,
+	normalPrompt = `你要将用户的拼音拼写为正确的中文，输出过程分为五步，将以json格式逐步打印每一步的输出结果：
+step1：将用户的拼音分词拆分为有意义、能拼写的逐个汉字拼音，每个汉字拼音用空格分隔。
+step2：根据第一步的拼音分词结果，先分析原句，指出并修复用户可能存在的拼音拼写错误，然后结合第一步的输出结果，输出每个拼音标注声调后的结果
+step3：根据第二步的输出结果，逐字拼写为中文句子
+step4：根据第三步和第二步的结果，分析是否可能存在拼音分词、拼音拼写等错误，拼写的各个汉字在句子中是否具有合理、正确的意义，指出疑点和不通顺的地方
+step5：这是最后一步，根据第三步的初步结果和第四步的疑点分析，修正可能有误的单词拼写，将用户输入的中文拼音在尊重保留原义的基础上拼写为正确、流畅的中文，给出最终拼写结果。
+`
+
+	mathPrompt = `你要将用户的拼音拼写为正确的中文，自然语言描述的数学表达式转换为规范的 MathJax 语法渲染，输出过程分为七步，将以 json 格式逐步打印每一步的输出结果：
+step1：保留尊重原文所有语义，将用户的拼音分词拆分为有意义、能拼写的逐个汉字拼音，每个汉字拼音用空格分隔。
+step2：根据第一步的拼音分词结果，先分析原句，指出并修复用户可能存在的拼音拼写错误，然后结合第一步的输出结果，输出每个拼音标注声调后的结果
+step3：根据第二步的输出结果，逐字拼写为中文句子
+step4：根据第三步和第二步的结果，分析是否可能存在拼音分词、拼音拼写等错误，拼写的各个汉字在句子中是否具有合理、正确的意义，指出疑点和不通顺的地方
+step5：根据第三步的初步结果和第四步的疑点分析，修正可能有误的单词拼写，将用户输入的中文拼音在保留尊重原文所有语义的基础上拼写为正确的中文句子，给出最终拼写结果。
+step6：根据第五步的中文自然语言拼写结果，提取其中所有自然语言描述的数学表达式部分（以format1、format2 ... 枚举），然后以 MathJax 语法格式($)重写为可渲染的表达式
+step7：结合第五步和第六步的输出结果，将第五步的结果里中文描述的数学表达式用第六步中的 MathJax 表达替换，给出最终结果，严禁对结果进行作答、解释，说明，输出额外内容，仅进行转写，使得整体上呈现为理工科教科书的语言、排版风格
+`
+
+	normalSchema = z.object({
+		step1: z.object({
+			output: z.string()
+		}),
+		step2: z.object({
+			analysis: z.string(),
+			output: z.string()
+		}),
+		step3: z.object({
+			output: z.string()
+		}),
+		step4: z.object({
+			analysis: z.string()
+		}),
+		step5: z.object({
+			analysis: z.string(),
+			output: z.string()
+		})
+	})
+
+	mathSchema = z.object({
+		step1: z.object({
+			output: z.string()
+		}),
+		step2: z.object({
+			analysis: z.string(),
+			output: z.string()
+		}),
+		step3: z.object({
+			output: z.string()
+		}),
+		step4: z.object({
+			analysis: z.string()
+		}),
+		step5: z.object({
+			output: z.string()
+		}),
+		step6: z.object({
+			format1: z.object({
+				origin: z.string(),
+				mathjax: z.string()
+			}).describe("format1, format2 ... and so on")
+		}),
+		step7: z.object({
+			output: z.string()
+		})
+	})
+
+
+    async callAPI(input: string, context: string = ""): Promise<string> {
+        
+		const isMathMode = this.settings.withLaTeX;
+        const systemPrompt = isMathMode ? this.mathPrompt : this.normalPrompt;
+		const prompt = context ? `${context}\n${input}` : input;
+		const model = this.settings.model;
+        
+        const openai = createGroq({
+            baseURL: this.settings.baseUrl,
+            apiKey: this.settings.apiKey,
+        })
+
+		try {
+
+			if (isMathMode) {
+
+				const { object } = await generateObject({
+					model: openai(model), 
+					schema: this.mathSchema,
+					system: systemPrompt,
 					temperature: 0.5,
-					top_p: 0.7
-				})
+					prompt
+				});
+
+				return object.step7.output;
+
+		} else {
+
+			const { object } = await generateObject({
+				model: openai(model), 
+				schema: this.normalSchema,
+				system: systemPrompt,
+				temperature: 0.5,
+				prompt
 			});
 
-            if (response.status < 200 || response.status >= 300) {
-                const errorData = await response.json.catch(() => null);
-				throw new Error(
-					errorData?.error?.message || 
-					`API请求失败 (HTTP ${response.status})`
-				);
-			}
-
-			const data = await response.json;
-			
-			if (!data.choices?.[0]?.message?.content) {
-				throw new Error('API返回的数据格式不正确');
-			}
-
-			return data.choices[0].message.content.trim();
+			return object.step5.output;
+		}
 
 		} catch (error) {
-			console.error('API Error:', error);
-			if (error instanceof Error) {
-				if (error.message.includes('Failed to fetch')) {
-					throw new Error(`无法连接到API服务器 (${this.settings.baseURL})`);
-				}
-				throw error;
-			}
-			throw new Error('调用API时发生未知错误');
+			console.error(error);
+			new Notice("转换失败，请检查设置和控制台日志");
+			return "";
 		}
-	}
 
-    async loadSettings() {
+    }
+
+	async loadSettings() {
         this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
     }
 
@@ -241,47 +217,76 @@ class PinyinConverterSettingTab extends PluginSettingTab {
 
         containerEl.empty();
 
+		// TODO 提供商自定义，给出自定义Url和apiKey以及model，一个开关用户是否包含上下文
+
+		// 设置：是否包含笔记上下文
+        new Setting(containerEl)
+            .setName('包含笔记上下文')
+            .setDesc('消耗更多 tokens 以及稍慢响应，但可能有更好的转换效果')
+            .addToggle(toggle =>
+                toggle
+                    .setValue(this.plugin.settings.withContext)
+                    .onChange(async (value) => {
+                        this.plugin.settings.withContext = value;
+                        await this.plugin.saveSettings();
+                    })
+            );
+
+        // 设置：是否使用 LaTeX 模式
+        new Setting(containerEl)
+            .setName('使用 LaTeX 模式')
+            .setDesc('开启后转换结果中自然语言描述的数学表达式转换为 LaTex 语法')
+            .addToggle(toggle =>
+                toggle
+                    .setValue(this.plugin.settings.withLaTeX)
+                    .onChange(async (value) => {
+                        this.plugin.settings.withLaTeX = value;
+                        await this.plugin.saveSettings();
+                    })
+            );
+
+        // 设置：API Base URL
+        new Setting(containerEl)
+            .setName('API Base URL')
+            .setDesc('必须携带v1，例如：https://api.groq.com/openai/v1')
+            .addText(text =>
+                text
+                    .setPlaceholder('https://api.groq.com/openai/v1')
+                    .setValue(this.plugin.settings.baseUrl)
+                    .onChange(async (value) => {
+                        this.plugin.settings.baseUrl = value;
+                        await this.plugin.saveSettings();
+                    })
+            );
+
+        // 设置：Model
         new Setting(containerEl)
             .setName('模型')
-            .setDesc('用于转换的默认模型，推荐使用国产模型')
-            .addText(text => text
-                .setPlaceholder('Qwen/Qwen2.5-7B-Instruct')
-                .setValue(this.plugin.settings.model)
-                .onChange(async (value) => {
-                    this.plugin.settings.model = value;
-                    await this.plugin.saveSettings();
-            }));
+            .setDesc('例如：llama-3.3-70b-versatile')
+            .addText(text =>
+                text
+                    .setPlaceholder('请输入模型名称')
+                    .setValue(this.plugin.settings.model)
+                    .onChange(async (value) => {
+                        this.plugin.settings.model = value;
+                        await this.plugin.saveSettings();
+                    })
+            );
 
+        // 设置：API Key
         new Setting(containerEl)
-            .setName('API地址')
-            .setDesc('API服务器地址，例如: https://api.siliconflow.cn/v1 (注意：/v1不能省略)')
-            .addText(text => text
-                .setPlaceholder('https://api.siliconflow.cn/v1')
-                .setValue(this.plugin.settings.baseURL)
-                .onChange(async (value) => {
-                    this.plugin.settings.baseURL = value;
-                    await this.plugin.saveSettings();
-            }));
-
-        new Setting(containerEl)
-            .setName('API密钥')
-            .setDesc('一般是sk-')
-            .addText(text => text
-                .setPlaceholder('')
-                .setValue(this.plugin.settings.apiKey)
-                .onChange(async (value) => {
-                    this.plugin.settings.apiKey = value;
-                    await this.plugin.saveSettings();
-            }));
-
-        new Setting(containerEl)
-            .setName('是否包含笔记上下文')
-            .setDesc('将会消耗稍多的token，以及稍慢的响应时间，但可能有更好的转换效果')
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.withContext)
-                .onChange(async (value) => {
-                    this.plugin.settings.withContext = value;
-                    await this.plugin.saveSettings();
-            }));
+            .setName('API Key')
+            .setDesc('用于调用 API 的密钥')
+            .addText(text =>
+                text
+                    .setPlaceholder('请输入 API Key')
+                    .setValue(this.plugin.settings.apiKey)
+                    .onChange(async (value) => {
+                        this.plugin.settings.apiKey = value;
+                        await this.plugin.saveSettings();
+                    })
+            );
     }
 }
+
+
