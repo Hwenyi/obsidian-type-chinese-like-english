@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { createGroq } from '@ai-sdk/groq';
 
 interface ConverterSetting {
-	// TODO 提供model和apiKey、baseUrl 以及两个开关，是否包含上下文、是否使用LaTeX模式（默认是关闭即普通模式）
 	withContext: boolean;
 	withLaTeX: boolean;
 	model: string;
@@ -13,8 +12,6 @@ interface ConverterSetting {
 }
 
 const DEFAULT_SETTINGS: ConverterSetting = {
-
-	// TODO 默认使用Groq
 	withContext: false,
 	withLaTeX: false,
 	model: "llama-3.3-70b-versatile",
@@ -43,18 +40,17 @@ export default class PinyinConverter extends Plugin {
     }
 
 	getContext(editor: Editor): string {
-        const cursor = editor.getCursor();
-        const startLine = Math.max(0, cursor.line - 3);
-        const endLine = Math.min(editor.lineCount() - 1, cursor.line + 3);
-        let contextText = "";
-        for (let i = startLine; i <= endLine; i++) {
-            contextText += editor.getLine(i) + "\n";
-        }
-        if (contextText.length > 1000) {
-            contextText = contextText.substring(0, 1000);
-        }
-        return contextText;
-    }
+		const cursor = editor.getCursor();
+		const startLine = Math.max(0, cursor.line - 3);
+		let contextText = "";
+		for (let i = startLine; i < cursor.line; i++) {
+			contextText += editor.getLine(i) + "\n";
+		}
+		if (contextText.length > 1000) {
+			contextText = contextText.substring(0, 1000);
+		}
+		return contextText;
+	}
 
     /**
      * 将光标所在行转换为汉字和LaTeX，根据设置决定是否包含上下文以及使用普通或LaTeX模式
@@ -80,7 +76,7 @@ export default class PinyinConverter extends Plugin {
     }
 
 
-	normalPrompt = `你要将用户的拼音拼写为正确的中文，输出过程分为五步，将以json格式逐步打印每一步的输出结果：
+	normalPrompt = `你要将用户的<待转换拼音>拼写为正确的中文，输出过程分为五步，将以json格式逐步打印每一步的输出结果：
 step1：将用户的拼音分词拆分为有意义、能拼写的逐个汉字拼音，每个汉字拼音用空格分隔。
 step2：根据第一步的拼音分词结果，先分析原句，指出并修复用户可能存在的拼音拼写错误，然后结合第一步的输出结果，输出每个拼音标注声调后的结果
 step3：根据第二步的输出结果，逐字拼写为中文句子
@@ -88,7 +84,7 @@ step4：根据第三步和第二步的结果，分析是否可能存在拼音分
 step5：这是最后一步，根据第三步的初步结果和第四步的疑点分析，修正可能有误的单词拼写，将用户输入的中文拼音在尊重保留原义的基础上拼写为正确、流畅的中文，给出最终拼写结果。
 `
 
-	mathPrompt = `你要将用户的拼音拼写为正确的中文，自然语言描述的数学表达式转换为规范的 MathJax 语法渲染，输出过程分为七步，将以 json 格式逐步打印每一步的输出结果：
+	mathPrompt = `你要将用户的<待转换拼音>拼写为正确的中文，自然语言描述的数学表达式转换为规范的 MathJax 语法渲染，输出过程分为七步，将以 json 格式逐步打印每一步的输出结果：
 step1：保留尊重原文所有语义，将用户的拼音分词拆分为有意义、能拼写的逐个汉字拼音，每个汉字拼音用空格分隔。
 step2：根据第一步的拼音分词结果，先分析原句，指出并修复用户可能存在的拼音拼写错误，然后结合第一步的输出结果，输出每个拼音标注声调后的结果
 step3：根据第二步的输出结果，逐字拼写为中文句子
@@ -151,7 +147,8 @@ step7：结合第五步和第六步的输出结果，将第五步的结果里中
         
 		const isMathMode = this.settings.withLaTeX;
         const systemPrompt = isMathMode ? this.mathPrompt : this.normalPrompt;
-		const prompt = context ? `${context}\n${input}` : input;
+		const system = this.settings.withContext ? `${systemPrompt} \n <参考上下文> 帮助分析句义，不参与最终转换过程` : systemPrompt;
+		const prompt = context ? `<参考上下文>${context}<参考上下文/>\n<待转换拼音>${input}<待转换拼音/>` : `<待转换拼音>input<待转换拼音/>`;
 		const model = this.settings.model;
         
         const openai = createGroq({
@@ -166,8 +163,8 @@ step7：结合第五步和第六步的输出结果，将第五步的结果里中
 				const { object } = await generateObject({
 					model: openai(model), 
 					schema: this.mathSchema,
-					system: systemPrompt,
 					temperature: 0.5,
+					system,
 					prompt
 				});
 
@@ -178,8 +175,8 @@ step7：结合第五步和第六步的输出结果，将第五步的结果里中
 			const { object } = await generateObject({
 				model: openai(model), 
 				schema: this.normalSchema,
-				system: systemPrompt,
 				temperature: 0.5,
+				system,
 				prompt
 			});
 
@@ -217,8 +214,6 @@ class PinyinConverterSettingTab extends PluginSettingTab {
 
         containerEl.empty();
 
-		// TODO 提供商自定义，给出自定义Url和apiKey以及model，一个开关用户是否包含上下文
-
 		// 设置：是否包含笔记上下文
         new Setting(containerEl)
             .setName('包含笔记上下文')
@@ -235,7 +230,7 @@ class PinyinConverterSettingTab extends PluginSettingTab {
         // 设置：是否使用 LaTeX 模式
         new Setting(containerEl)
             .setName('使用 LaTeX 模式')
-            .setDesc('开启后转换结果中自然语言描述的数学表达式转换为 LaTex 语法')
+            .setDesc('自然语言描述的数学表达式转换为 LaTex，和包含上下文同时开启可能引起不必要的输出')
             .addToggle(toggle =>
                 toggle
                     .setValue(this.plugin.settings.withLaTeX)
@@ -248,7 +243,7 @@ class PinyinConverterSettingTab extends PluginSettingTab {
         // 设置：API Base URL
         new Setting(containerEl)
             .setName('API Base URL')
-            .setDesc('必须携带v1，例如：https://api.groq.com/openai/v1')
+            .setDesc('建议注册免费的groq，必须携带v1，例如：https://api.groq.com/openai/v1')
             .addText(text =>
                 text
                     .setPlaceholder('https://api.groq.com/openai/v1')
@@ -262,7 +257,7 @@ class PinyinConverterSettingTab extends PluginSettingTab {
         // 设置：Model
         new Setting(containerEl)
             .setName('模型')
-            .setDesc('例如：llama-3.3-70b-versatile')
+            .setDesc('尽量使用可以结构化输出的模型，例如：llama-3.3-70b-versatile')
             .addText(text =>
                 text
                     .setPlaceholder('请输入模型名称')
