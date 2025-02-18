@@ -1,4 +1,4 @@
-import { App, Editor, Notice,MarkdownView, Plugin, PluginSettingTab, Setting, requestUrl } from 'obsidian';
+import { App, Editor, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
 import { generateObject } from 'ai';
 import { z } from 'zod';
 import { createGroq } from '@ai-sdk/groq';
