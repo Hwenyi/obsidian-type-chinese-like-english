@@ -55,26 +55,47 @@ export default class PinyinConverter extends Plugin {
     /**
      * 将光标所在行转换为汉字和LaTeX，根据设置决定是否包含上下文以及使用普通或LaTeX模式
      */
-    async convertToCharacters(editor: Editor): Promise<void> {
-        const cursor = editor.getCursor();
-        const inputLine = editor.getLine(cursor.line).trim();
-        if (!inputLine) {
-            new Notice("当前所在行为空");
-            return;
-        }
-        const context = this.settings.withContext ? this.getContext(editor) : "";
-        const result = await this.callAPI(inputLine, context);
+
+	async convertToCharacters(editor: Editor): Promise<void> {
+    // 获取光标位置
+    const cursor = editor.getCursor();
+    // 获取当前行的文本
+    const line = editor.getLine(cursor.line);
+    
+    if (!line.trim()) {
+        new Notice("当前行为空，无法转换");
+        return;
+    }
+    
+    // 根据设置决定是否获取上下文
+    let context = "";
+    if (this.settings.withContext) {
+        context = this.getContext(editor);
+    }
+    
+    // 显示正在转换的通知
+    new Notice("正在转换中...");
+    
+    try {
+        // 调用API进行转换
+        const result = await this.callAPI(line, context);
+        
         if (result) {
-            // 将当前行替换为转换结果
-            const lineStart = { line: cursor.line, ch: 0 };
-            const lineEnd = { line: cursor.line, ch: inputLine.length };
-            editor.replaceRange(result, lineStart, lineEnd);
+            // 替换当前行的文本
+            editor.replaceRange(
+                result,
+                { line: cursor.line, ch: 0 },
+                { line: cursor.line, ch: line.length }
+            );
             new Notice("转换完成");
         } else {
-            new Notice("转换失败");
+            new Notice("转换结果为空");
         }
+    } catch (error) {
+        console.error("转换过程中发生错误:", error);
+        new Notice("转换失败，请查看控制台日志");
     }
-
+}
 
 	normalPrompt = `你要将用户的<待转换拼音>拼写为正确的中文，输出过程分为五步，将以json格式逐步打印每一步的输出结果：
 step1：将用户的拼音分词拆分为有意义、能拼写的逐个汉字拼音，每个汉字拼音用空格分隔。
@@ -148,7 +169,7 @@ step7：结合第五步和第六步的输出结果，将第五步的结果里中
 		const isMathMode = this.settings.withLaTeX;
         const systemPrompt = isMathMode ? this.mathPrompt : this.normalPrompt;
 		const system = this.settings.withContext ? `${systemPrompt} \n <参考上下文> 帮助分析句义，不参与最终转换过程` : systemPrompt;
-		const prompt = context ? `<参考上下文>${context}<参考上下文/>\n<待转换拼音>${input}<待转换拼音/>` : `<待转换拼音>input<待转换拼音/>`;
+		const prompt = context ? `<参考上下文>${context}<参考上下文/>\n<待转换拼音>${input}<待转换拼音/>` : `<待转换拼音>${input}<待转换拼音/>`;
 		const model = this.settings.model;
         
         const openai = createGroq({
