@@ -1,6 +1,6 @@
 {
 	"name": "type-chinese-like-english",
-	"version": "1.0.0",
+	"version": "1.1.1",
 	"description": "Type Chinese Like English, more easy and fast",
 	"main": "main.js",
 	"scripts": {
